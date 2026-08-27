@@ -24,16 +24,35 @@ const client = new MongoClient(uri, {
 
 async function run() {
     try {
-        await client.connect();
+        // await client.connect();
         console.log("Successfully connected to MongoDB!");
 
         // Facilities
         const facilityCollection = client.db("venuex_db").collection("facilities");
 
 
+        // Get all facilities (Supports Search & Filter)
         app.get('/facilities', async (req, res) => {
-            const result = await facilityCollection.find().toArray();
-            res.send(result);
+            try {
+                const { search, category } = req.query;
+                let query = {};
+
+                // 1. Search by facility name using $regex (case-insensitive)
+                if (search) {
+                    query.name = { $regex: search, $options: 'i' };
+                }
+
+                // 2. Filter by sport type using $in
+                if (category && category !== 'All') {
+                    query.facility_type = { $in: [category] };
+                }
+
+                const result = await facilityCollection.find(query).toArray();
+                res.send(result);
+            } catch (error) {
+                console.error("Error fetching facilities:", error);
+                res.status(500).send({ message: "Server Error", error });
+            }
         });
 
         app.get('/facilities/:id', async (req, res) => {
@@ -153,56 +172,56 @@ async function run() {
 
 
     // Update a facility by ID
-app.put('/facilities/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ success: false, message: "Invalid ID format" });
-    }
+    app.put('/facilities/:id', async (req, res) => {
+        try {
+            const id = req.params.id;
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ success: false, message: "Invalid ID format" });
+            }
 
-    const updatedData = req.body;
-    const filter = { _id: new ObjectId(id) };
-    const updateDoc = {
-      $set: {
-        name: updatedData.name,
-        facility_type: updatedData.facility_type,
-        location: updatedData.location,
-        price_per_hour: Number(updatedData.price_per_hour),
-        capacity: Number(updatedData.capacity),
-        image: updatedData.image,
-        description: updatedData.description,
-      },
-    };
+            const updatedData = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    name: updatedData.name,
+                    facility_type: updatedData.facility_type,
+                    location: updatedData.location,
+                    price_per_hour: Number(updatedData.price_per_hour),
+                    capacity: Number(updatedData.capacity),
+                    image: updatedData.image,
+                    description: updatedData.description,
+                },
+            };
 
-    const result = await facilityCollection.updateOne(filter, updateDoc);
-    res.send({ success: true, modifiedCount: result.modifiedCount });
-  } catch (error) {
-    console.error("Error updating facility:", error);
-    res.status(500).send({ success: false, message: "Failed to update facility" });
-  }
-});
+            const result = await facilityCollection.updateOne(filter, updateDoc);
+            res.send({ success: true, modifiedCount: result.modifiedCount });
+        } catch (error) {
+            console.error("Error updating facility:", error);
+            res.status(500).send({ success: false, message: "Failed to update facility" });
+        }
+    });
 
-// Delete a facility by ID
-app.delete('/facilities/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ success: false, message: "Invalid ID format" });
-    }
+    // Delete a facility by ID
+    app.delete('/facilities/:id', async (req, res) => {
+        try {
+            const id = req.params.id;
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ success: false, message: "Invalid ID format" });
+            }
 
-    const query = { _id: new ObjectId(id) };
-    const result = await facilityCollection.deleteOne(query);
+            const query = { _id: new ObjectId(id) };
+            const result = await facilityCollection.deleteOne(query);
 
-    if (result.deletedCount === 1) {
-      res.send({ success: true, message: "Facility deleted successfully" });
-    } else {
-      res.status(404).send({ success: false, message: "Facility not found" });
-    }
-  } catch (error) {
-    console.error("Error deleting facility:", error);
-    res.status(500).send({ success: false, message: "Failed to delete facility" });
-  }
-});
+            if (result.deletedCount === 1) {
+                res.send({ success: true, message: "Facility deleted successfully" });
+            } else {
+                res.status(404).send({ success: false, message: "Facility not found" });
+            }
+        } catch (error) {
+            console.error("Error deleting facility:", error);
+            res.status(500).send({ success: false, message: "Failed to delete facility" });
+        }
+    });
 }
 run();
 
@@ -213,3 +232,5 @@ app.get('/', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
 });
+
+module.exports = app;
