@@ -27,8 +27,10 @@ async function run() {
         await client.connect();
         console.log("Successfully connected to MongoDB!");
 
+        // Facilities
         const facilityCollection = client.db("venuex_db").collection("facilities");
 
+        
         app.get('/facilities', async (req, res) => {
             const result = await facilityCollection.find().toArray();
             res.send(result);
@@ -54,6 +56,33 @@ async function run() {
     } catch (error) {
         console.error("MongoDB Connection Error:", error);
     }
+
+    // Bookings Collection
+    const bookingCollection = client.db("venuex_bd").collection("bookings");
+
+    // Create a new booking
+    app.post('/bookings', async (req, res) => {
+        try {
+            const bookingData = req.body;
+
+            // Basic validation
+            if (!bookingData.facilityId || !bookingData.date || !bookingData.slot) {
+                return res.status(400).send({ success: false, message: "Missing required fields" });
+            }
+
+            const bookingWithTimestamp = {
+                ...bookingData,
+                createdAt: new Date(),
+                status: "Confirmed"
+            };
+
+            const result = await bookingCollection.insertOne(bookingWithTimestamp);
+            res.status(201).send({ success: true, insertedId: result.insertedId });
+        } catch (error) {
+            console.error("Booking creation error:", error);
+            res.status(500).send({ success: false, message: "Failed to create booking" });
+        }
+    });
 }
 run();
 
