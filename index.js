@@ -30,7 +30,7 @@ async function run() {
         // Facilities
         const facilityCollection = client.db("venuex_db").collection("facilities");
 
-        
+
         app.get('/facilities', async (req, res) => {
             const result = await facilityCollection.find().toArray();
             res.send(result);
@@ -56,6 +56,33 @@ async function run() {
     } catch (error) {
         console.error("MongoDB Connection Error:", error);
     }
+
+
+    // Add a new facility
+    app.post('/facilities', async (req, res) => {
+        try {
+            const facilityData = req.body;
+
+            // Validation check
+            if (!facilityData.name || !facilityData.facility_type || !facilityData.location || !facilityData.price_per_hour || !facilityData.image) {
+                return res.status(400).send({ success: false, message: "Missing required fields" });
+            }
+
+            // Prepare document with correct data types
+            const newFacility = {
+                ...facilityData,
+                price_per_hour: Number(facilityData.price_per_hour),
+                capacity: Number(facilityData.capacity) || 0,
+                createdAt: new Date(),
+            };
+
+            const result = await facilityCollection.insertOne(newFacility);
+            res.status(201).send({ success: true, insertedId: result.insertedId });
+        } catch (error) {
+            console.error("Error adding facility:", error);
+            res.status(500).send({ success: false, message: "Failed to add facility" });
+        }
+    });
 
     // Bookings Collection
     const bookingCollection = client.db("venuex_bd").collection("bookings");
@@ -83,6 +110,99 @@ async function run() {
             res.status(500).send({ success: false, message: "Failed to create booking" });
         }
     });
+
+
+    // Get all bookings (Supports optional query filtering by email: /bookings?email=user@gmail.com)
+    app.get('/bookings', async (req, res) => {
+        try {
+            const email = req.query.email;
+            let query = {};
+            if (email) {
+                query = { userEmail: email };
+            }
+            const result = await bookingCollection.find(query).sort({ createdAt: -1 }).toArray();
+            res.send(result);
+        } catch (error) {
+            console.error("Error fetching bookings:", error);
+            res.status(500).send({ success: false, message: "Failed to fetch bookings" });
+        }
+    });
+
+    // Delete / Cancel a booking by ID
+    app.delete('/bookings/:id', async (req, res) => {
+        try {
+            const id = req.params.id;
+
+            if (!ObjectId.isValid(id)) {
+                return res.status(400).send({ success: false, message: "Invalid Booking ID format" });
+            }
+
+            const query = { _id: new ObjectId(id) };
+            const result = await bookingCollection.deleteOne(query);
+
+            if (result.deletedCount === 1) {
+                res.send({ success: true, message: "Booking cancelled successfully" });
+            } else {
+                res.status(404).send({ success: false, message: "Booking not found" });
+            }
+        } catch (error) {
+            console.error("Error deleting booking:", error);
+            res.status(500).send({ success: false, message: "Failed to cancel booking" });
+        }
+    });
+
+
+    // Update a facility by ID
+app.put('/facilities/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid ID format" });
+    }
+
+    const updatedData = req.body;
+    const filter = { _id: new ObjectId(id) };
+    const updateDoc = {
+      $set: {
+        name: updatedData.name,
+        facility_type: updatedData.facility_type,
+        location: updatedData.location,
+        price_per_hour: Number(updatedData.price_per_hour),
+        capacity: Number(updatedData.capacity),
+        image: updatedData.image,
+        description: updatedData.description,
+      },
+    };
+
+    const result = await facilityCollection.updateOne(filter, updateDoc);
+    res.send({ success: true, modifiedCount: result.modifiedCount });
+  } catch (error) {
+    console.error("Error updating facility:", error);
+    res.status(500).send({ success: false, message: "Failed to update facility" });
+  }
+});
+
+// Delete a facility by ID
+app.delete('/facilities/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid ID format" });
+    }
+
+    const query = { _id: new ObjectId(id) };
+    const result = await facilityCollection.deleteOne(query);
+
+    if (result.deletedCount === 1) {
+      res.send({ success: true, message: "Facility deleted successfully" });
+    } else {
+      res.status(404).send({ success: false, message: "Facility not found" });
+    }
+  } catch (error) {
+    console.error("Error deleting facility:", error);
+    res.status(500).send({ success: false, message: "Failed to delete facility" });
+  }
+});
 }
 run();
 
